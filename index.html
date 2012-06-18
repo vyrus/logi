@@ -3,7 +3,7 @@
 <head> 
     <meta http-equiv="content-type" content="text/html; charset=utf-8"> 
     <script type="text/javascript" src="http://d3js.org/d3.v2.js"></script> 
-    <script type="text/javascript" src="./js/editor.js"></script>
+    <script type="text/javascript" src="./js/editor.js" charset="utf-8"></script>
     
     <script type="text/javascript">
         window.addEventListener('load', function() { new Logi.Editor('#editor'); }, false);
@@ -14,10 +14,14 @@
             border: 1px solid #dedede;
         }
         
-        .element {
+        .element .box {
             stroke: #000;
             stroke-width: 1px;
-/*            fill: none;*/
+            fill: #fff;
+        }
+        
+        .element .label {
+            pointer-events: none;
         }
     </style>
 </head> 
