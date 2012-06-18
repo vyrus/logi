@@ -233,20 +233,34 @@ Logi.Editor = Class({
     
     elements_group: null,
     
+    links_group: null,
+    
+    prev_element: null,
+    
     __construct: function(area_selector) {
         this.window = d3.select(window);
         this.canvas = d3.select(area_selector)
                         .append('svg')
                         .attr('width', 1000)
                         .attr('height', 1000);
-                        
-        this.elements_group = this.canvas.append('g')
-                                         .attr('id', 'elements');
+        
+        var canvas = this.canvas;
+        
+        this.elements_group = canvas.append('g').attr('id', 'elements');
+        this.links_group = canvas.append('g').attr('id', 'links');
                    
-        this.canvas.on('dblclick', wrap_ctx(this, this.create_element));
+        canvas.on('dblclick', wrap_ctx(this, this.create_element));
         
         //console.info('SVG canvas width', this.canvas.node().clientWidth);
         //console.info('SVG canvas height', this.canvas.node().clientHeight);
+    },
+    
+    get_elements_group: function() {
+        return this.elements_group;
+    },
+    
+    get_links_group: function() {
+        return this.links_group;
     },
     
     create_element: function(dom_elem) {
@@ -258,8 +272,63 @@ Logi.Editor = Class({
         
         var elem = new Logi.Element.SimpleAction(this);
         elem.move(point[0], point[1]);
+        
+        if (this.prev_element) {
+            this.prev_element.connect_to(elem);
+        }
+        this.prev_element = elem;
+    },
+    
+    create_link: function(elem_out, elem_in) {
+        var link = new Logi.Link(this, elem_out, elem_in);
+    },
+    
+    create_svg_point: function() {
+        return this.canvas.node().createSVGPoint();
     }
     
+});
+
+Logi.Link = Class({
+    
+    editor: null,
+    
+    elem_out: null,
+    
+    elem_in: null,
+    
+    __construct: function(editor, elem_out, elem_in) {
+        this.editor = editor;
+        this.elem_out = elem_out;
+        this.elem_in = elem_in;
+        this.render(editor.get_links_group());
+    },
+
+    render: function(links) {
+        var out_point = this.elem_out.get_link_out_point();
+        var in_point = this.elem_in.get_link_in_point();
+        
+        var points = [];
+        points.push(out_point);
+        
+        if (out_point.y != in_point.y) {
+            var center = Math.round((out_point.x + in_point.x) / 2);
+            points.push({x: center, y: out_point.y});
+            points.push({x: center, y: in_point.y});
+        }
+        
+        points.push(in_point);
+        points.unshift('');
+        
+        points = points.reduce(function(str, p) {
+            return str + (str.length ? ' ' : '') + p.x + ',' + p.y;
+        });
+        
+        var link = links.append('polyline');
+        link.attr('class', 'link')
+            .attr('points', points);
+    }
+
 });
 
 Logi.Element = {};
@@ -272,15 +341,17 @@ Logi.Element.Abstract = Class({
     window: null,
     
     drag_origin: null,
+    
+    links: [],
         
     __construct: function(editor) {
         this.editor = editor;
         
-        this.element = this.render_element(this.editor.elements_group);
+        this.element = this.render(this.editor.get_elements_group());
         this.element.on('mousedown', wrap_ctx(this, this.drag_start));
     },
     
-    render_element: function(elements) {
+    render: function(elements) {
         var elem = elements.append('rect');
         elem.classed('element', true)
             .attr('x', 5)
@@ -301,6 +372,20 @@ Logi.Element.Abstract = Class({
         var m = matrix;
         var m = [m.a, m.b, m.c, m.d, m.e, m.f];
         this.element.attr('transform', 'matrix(' + m.join(', ') + ')');
+    },
+    
+    add_link: function(link) {
+        this.links.push(link);
+    },
+    
+    connect_to: function(elem) {
+        var link = this.editor.create_link(this, elem);
+        this.add_link(link);
+        elem.add_link(link);
+    },
+    
+    get_link_out_point: function() {
+        //
     },
     
     drag_point: function() {
@@ -343,7 +428,11 @@ Logi.Element.Abstract = Class({
 
 Logi.Element.SimpleAction = ClassExtends(Logi.Element.Abstract, {
 	
-    render_element: function(elements) {
+    width: 100,
+    
+    height: 100,
+    
+    render: function(elements) {
         var align_label = {};
         var label_padding = {left: 5, top: 0};
         
@@ -352,8 +441,8 @@ Logi.Element.SimpleAction = ClassExtends(Logi.Element.Abstract, {
         
         elem.append('rect')
             .attr('class', 'box')
-            .attr('width', 100)
-            .attr('height', 100);
+            .attr('width', this.width)
+            .attr('height', this.height);
         
         var label = elem.append('text')
                         .attr('class', 'label')
@@ -368,12 +457,37 @@ Logi.Element.SimpleAction = ClassExtends(Logi.Element.Abstract, {
         
         align_label.execute();
         return elem;
+    },
+    
+    get_link_out_point: function() {
+        var point = this.get_left_center();
+        point.x += this.width;
+        return point;
+    },
+    
+    get_link_in_point: function() {
+        var point = this.get_left_center();
+        return point;
+    },
+    
+    get_left_center: function() {
+        var elem = this.element.node();
+        var bbox = elem.getBBox();
+        
+        var point = this.editor.create_svg_point();
+        point.x = bbox.x;
+        point.y = bbox.y + Math.round(this.height / 2);
+        
+        var matrix = elem.getCTM();
+        point = point.matrixTransform(matrix);
+        
+        return point;
     }
     
-})
+});
 
 Logi.Element.CompoundAction = ClassExtends(Logi.Element.Abstract, {
 	
     //
     
-})
+});
