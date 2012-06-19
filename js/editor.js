@@ -280,7 +280,7 @@ Logi.Editor = Class({
     },
     
     create_link: function(elem_out, elem_in) {
-        var link = new Logi.Link(this, elem_out, elem_in);
+        return new Logi.Link(this, elem_out, elem_in);
     },
     
     create_svg_point: function() {
@@ -297,14 +297,16 @@ Logi.Link = Class({
     
     elem_in: null,
     
+    link: null,
+    
     __construct: function(editor, elem_out, elem_in) {
         this.editor = editor;
         this.elem_out = elem_out;
         this.elem_in = elem_in;
-        this.render(editor.get_links_group());
+        this.draw(editor.get_links_group());
     },
-
-    render: function(links) {
+    
+    get_points: function() {
         var out_point = this.elem_out.get_link_out_point();
         var in_point = this.elem_in.get_link_in_point();
         
@@ -324,9 +326,19 @@ Logi.Link = Class({
             return str + (str.length ? ' ' : '') + p.x + ',' + p.y;
         });
         
+        return points;
+    },
+    
+    draw: function(links) {
         var link = links.append('polyline');
         link.attr('class', 'link')
-            .attr('points', points);
+            .attr('points', this.get_points());
+    
+        this.link = link;
+    },
+    
+    redraw: function() {
+        this.link.attr('points', this.get_points());
     }
 
 });
@@ -347,11 +359,11 @@ Logi.Element.Abstract = Class({
     __construct: function(editor) {
         this.editor = editor;
         
-        this.element = this.render(this.editor.get_elements_group());
+        this.element = this.draw(this.editor.get_elements_group());
         this.element.on('mousedown', wrap_ctx(this, this.drag_start));
     },
     
-    render: function(elements) {
+    draw: function(elements) {
         var elem = elements.append('rect');
         elem.classed('element', true)
             .attr('x', 5)
@@ -411,9 +423,12 @@ Logi.Element.Abstract = Class({
          * @todo: Do not allow to move elements outside canvas.
          */
         this.move(dx, dy);
-        
         //console.info('Element drag move, dx:', dx, 'dy:', dy);
         this.drag_origin = point;
+        
+        this.links.forEach(function(link) {
+            link.redraw();
+        });
     },
     
     drag_stop: function() {
@@ -432,7 +447,7 @@ Logi.Element.SimpleAction = ClassExtends(Logi.Element.Abstract, {
     
     height: 100,
     
-    render: function(elements) {
+    draw: function(elements) {
         var align_label = {};
         var label_padding = {left: 5, top: 0};
         
